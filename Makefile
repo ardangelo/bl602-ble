@@ -1,25 +1,34 @@
+# Project configuration
 PROJECT_NAME := ble-client
 PROJECT_PATH := $(abspath .)
 PROJECT_BOARD := evb
+export CONFIG_CHIP_NAME=BL602
 export PROJECT_PATH PROJECT_BOARD
-#CONFIG_TOOLPREFIX :=
 
 -include ./proj_config.mk
 
+# Check API path
 ifeq ($(origin BL60X_SDK_PATH), undefined)
-BL60X_SDK_PATH_GUESS ?= $(shell pwd)
-BL60X_SDK_PATH ?= $(BL60X_SDK_PATH_GUESS)/../..
-$(info ****** Please SET BL60X_SDK_PATH ******)
-$(info ****** Trying SDK PATH [$(BL60X_SDK_PATH)])
+$(error ****** Please SET BL60X_SDK_PATH ******)
 endif
 
-COMPONENTS_BLSYS   := bltime blfdt blmtd bloop loopadc looprt loopset
-COMPONENTS_VFS     := romfs
+# Disable wifi (still need includes for BT)
+CFLAGS := $(CFLAGS) -DFEATURE_WIFI_DISABLE=1
 
-INCLUDE_COMPONENTS += freertos_riscv_ram bl602 bl602_std hal_drv vfs yloop utils cli blog blog_testc
-INCLUDE_COMPONENTS += $(COMPONENTS_NETWORK)
-INCLUDE_COMPONENTS += $(COMPONENTS_BLSYS)
-INCLUDE_COMPONENTS += $(COMPONENTS_VFS)
+# BL602 system
+INCLUDE_COMPONENTS += bl602 bl602_std bltime blfdt blmtd bloop loopadc looprt loopset
+# FreeRTOS
+INCLUDE_COMPONENTS += freertos_riscv_ram
+# HAL
+INCLUDE_COMPONENTS += hal_drv utils cli
+# VFS
+INCLUDE_COMPONENTS += vfs romfs
+# AliOS Things
+INCLUDE_COMPONENTS += yloop
+# Bluetooth (bl602_wifi required for BT device)
+INCLUDE_COMPONENTS += blecontroller blestack bl602_wifi blog
+
+# Project
 INCLUDE_COMPONENTS += $(PROJECT_NAME)
 
 include $(BL60X_SDK_PATH)/make_scripts_riscv/project.mk

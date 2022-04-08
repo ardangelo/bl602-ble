@@ -15,17 +15,31 @@
 #include <bl_timer.h>
 #include <bl_dma.h>
 #include <bl_gpio.h>
-#include <bl_gpio_cli.h>
-#include <bl_wdt_cli.h>
 #include <bl_rtc.h>
 
 // HAL
 #include <hal_sys.h>
 #include <hal_boot2.h>
 #include <hal_board.h>
+#include <hal_uart.h>
 
-// Logging
-#include <blog.h>
+// VFS
+#include <vfs.h>
+
+// Flattened Device Tree
+#include <fdt.h>
+#include <libfdt.h>
+
+// AliOS Things
+#include <aos/kernel.h>
+#include <aos/yloop.h>
+
+#include <event_device.h>
+
+#include "ble_lib_api.h"
+#include "ble_app.h"
+
+extern void uart_init(uint8_t uartid);
 
 // Global heap
 extern uint8_t _heap_start;
@@ -103,20 +117,59 @@ void vApplicationGetTimerTaskMemory(StaticTask_t **ppxTimerTaskTCBBuffer, StackT
     *pulTimerTaskStackSize = configTIMER_TASK_STACK_DEPTH;
 }
 
+static int get_dts_addr(const char *name, uint32_t *start, uint32_t *off)
+{
+    uint32_t addr = hal_board_get_factory_addr();
+    const void *fdt = (const void *)addr;
+    uint32_t offset;
+
+    if (!name || !start || !off) {
+        return -1;
+    }
+
+    offset = fdt_subnode_offset(fdt, 0, name);
+    if (offset <= 0) {
+       printf("%s NULL.\r\n", name);
+       return -1;
+    }
+
+    *start = (uint32_t)fdt;
+    *off = offset;
+
+    return 0;
+}
+
+static void event_cb_ble_event(input_event_t *event, void *private_data)
+{
+    printf("%s: 0x%02x\n", __func__, event->code);
+}
+
 static void proc_hello_entry(void *pvParameters)
 {
-    vTaskDelay(500);
+    vfs_init();
+    vfs_device_init();
 
-    while (1) {
-        printf("%s: RISC-V rv32imafc\r\n", __func__);
-        vTaskDelay(10000);
+    { uint32_t fdt = 0;
+        uint32_t offset = 0;
+        if (get_dts_addr("uart", &fdt, &offset) == 0) {
+            vfs_uart_init(fdt, offset);
+        }
     }
+
+    aos_loop_init();
+    aos_register_event_filter(EV_BLE_TEST, event_cb_ble_event, NULL);
+
+    uart_init(1);
+    ble_controller_init(configMAX_PRIORITIES - 1);
+
+    aos_loop_run();
+
     vTaskDelete(NULL);
 }
 
 void bfl_main(void)
 {
-    static StackType_t proc_hello_stack[512];
+    static StackType_t proc_hello_stack[1024];
     static StaticTask_t proc_hello_task;
 
     bl_sys_early_init();
@@ -128,7 +181,6 @@ void bfl_main(void)
     vPortDefineHeapRegions(xHeapRegions);
     printf("Heap %u@%p\r\n", (unsigned int)&_heap_size, &_heap_start);
 
-    blog_init();
     bl_irq_init();
     bl_sec_init();
     bl_sec_test();
@@ -139,7 +191,7 @@ void bfl_main(void)
     hal_board_cfg(0);
 
     printf("[OS] Starting proc_hello_entry task...\r\n");
-    xTaskCreateStatic(proc_hello_entry, (char*)"hello", 512, NULL, 15, proc_hello_stack, &proc_hello_task);
+    xTaskCreateStatic(proc_hello_entry, (char*)"event_loop", 1024, NULL, 15, proc_hello_stack, &proc_hello_task);
 
     printf("[OS] Starting OS Scheduler...\r\n");
     vTaskStartScheduler();
