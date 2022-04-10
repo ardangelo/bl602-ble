@@ -1,5 +1,5 @@
---- project.mk	2022-04-03 09:02:47.265248300 -0500
-+++ project-new.mk	2022-04-03 15:05:05.244196200 -0500
+--- /make_scripts_riscv/project.mk	2022-04-03 09:02:47.265248300 -0500
++++ /make_scripts_riscv/project-new.mk	2022-04-03 15:05:05.244196200 -0500
 @@ -183,21 +183,6 @@
  include $(BL60X_SDK_PATH)/make_scripts_riscv/common.mk
  include $(BL60X_SDK_PATH)/make_scripts_riscv/toolchain.mk

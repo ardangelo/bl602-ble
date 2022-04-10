@@ -1,0 +1,14 @@
+--- /components/network/ble/blestack/src/port/include/config.h	2022-04-09 08:05:51.172440628 -0500
++++ /components/network/ble/blestack/src/port/include/config-new.h	2022-04-09 08:05:44.784408108 -0500
+@@ -3,6 +3,11 @@
+ 
+ #include "FreeRTOSConfig.h"
+ 
++#if defined(__cplusplus)
++extern "C"
++{
++#endif
++
+ /**
+  * CONFIG_BLUETOOTH: Enable the bluetooh stack
+  */
