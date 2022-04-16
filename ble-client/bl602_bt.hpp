@@ -1,42 +1,9 @@
 #pragma once
 
-// Bouffalo device
-extern "C" {
-#include <bl_sys.h>
-#include <bl_uart.h>
-#include <bl_chip.h>
-#include <bl_sec.h>
-#include <bl_cks.h>
-#include <bl_irq.h>
-#include <bl_timer.h>
-#include <bl_dma.h>
-#include <bl_gpio.h>
-#include <bl_rtc.h>
-} // extern "C"
+#include <array>
+#include <type_traits>
 
-// HAL
-extern "C" {
-#include <hal_sys.h>
-#include <hal_boot2.h>
-#include <hal_board.h>
-#include <hal_uart.h>
-} // extern "C"
-
-// VFS
-#include <vfs.h>
-
-// Flattened Device Tree
-extern "C" {
-#include <fdt.h>
-#include <libfdt.h>
-} // extern "C"
-
-// AliOS Things
-#include <aos/kernel.h>
-#include <aos/yloop.h>
-
-#include <event_device.h>
-
+// BT system
 extern "C" {
 #include "bluetooth.h"
 #include "conn.h"

@@ -20,7 +20,6 @@ extern "C" {
 #include <bl_irq.h>
 #include <bl_timer.h>
 #include <bl_dma.h>
-#include <bl_gpio.h>
 #include <bl_rtc.h>
 } // extern "C"
 
@@ -39,15 +38,12 @@ extern "C" {
 extern "C" {
 #include <fdt.h>
 #include <libfdt.h>
+#include <event_device.h>
 } // extern "C"
 
-// AliOS Things
-#include <aos/kernel.h>
-#include <aos/yloop.h>
-
-#include <event_device.h>
-
-#include "bluetooth.hpp"
+#include "led.hpp"
+#include "Bluetooth.hpp"
+#include "AosLoop.hpp"
 
 // C declarations
 extern "C" {
@@ -62,173 +58,54 @@ void bfl_main(void);
 
 } // extern "C"
 
-#define NAME_LEN        30
-#define CHAR_SIZE_MAX       512
+// Helper classes
 
-#define EV_BLE_TEST     0x0504
-#define BLE_ADV_START   0x01
-#define BLE_ADV_STOP    0x02
-#define BLE_DEV_CONN    0x03
-#define BLE_DEV_DISCONN 0x04
-#define BLE_SCAN_START  0x05
-#define BLE_SCAN_STOP   0x06
+template <size_t StackSize>
+class RtosTask
+{
+private: // member variables
+    std::array<StackType_t, StackSize> m_stack;
+    StaticTask_t m_task;
 
-#define LED_RED_PIN         (17)
-#define LED_GREEN_PIN       (14)
-#define LED_BLUE_PIN        (11)
+public: // interface
+    RtosTask()
+        : m_stack{}
+        , m_task{}
+    {}
 
-// BLE advertisement
-
-namespace bt_advertisement {
-
-static auto flags = std::array
-    { bt_le_ad::general | bt_le_ad::no_bredr
-};
-static auto data = std::array
-    { make_bt_data(bt_eir::flags, flags)
-    , make_bt_data(bt_eir::name_complete, "BL_602", 6)
-    , make_bt_data(bt_eir::manufacturer_data, "MANUFACTURER", 13)
+    void create_static(char const* task_name, TaskFunction_t entry_fn)
+    {
+        auto const priority = 15;
+        xTaskCreateStatic(entry_fn, task_name, m_stack.size(), nullptr, priority,
+            m_stack.begin(), &m_task);
+    }
 };
 
-static auto parameters = bt_le_adv::make_param(
-    bt_le_adv::connectable | bt_le_adv::use_name,
-    bt_gap::adv_fast_int_min_2, bt_gap::adv_fast_int_max_2);
+// Helper functions
 
-} // namespace bt_advertisement
-
-// BT callbacks
-namespace bt_callbacks {
-
-static struct bt_conn *ble_bl_conn = nullptr;
-static bool notify_flag = false;
-
-static void initialized(int err)
+static auto get_dts_addr(const char *name)
 {
-    if (err) {
-        printf("%s callback started with error code %d\r\n", __func__, err);
-        return;
+    auto addr = hal_board_get_factory_addr();
+    auto offset = fdt_subnode_offset((void const*)addr, 0, name);
+
+    if (offset == 0) {
+        printf("FDT offset lookup failed for '%s'.\r\n", name);
+        return std::make_tuple(false, 0UL, 0);
     }
 
-    printf("Bluetooth Advertising starting\r\n");
-
-    bt_set_name("blf_602");
-
-    if (auto const err = bt_le_adv_start(&bt_advertisement::parameters,
-        bt_advertisement::data.begin(), bt_advertisement::data.size(), nullptr, 0)) {
-        printf("Advertising failed to start (err %d)\r\n", err);
-        return;
-    }
-
-    aos_post_event(EV_BLE_TEST, BLE_ADV_START, 0);
+    return std::make_tuple(true, addr, offset);
 }
-
-static void connected(bt_conn* conn, uint8_t err)
-{
-    if (err) {
-        printf("%s callback started (error %d)\r\n", __func__, err);
-        return;
-    }
-
-    printf("Connected\r\n");
-    ble_bl_conn = conn;
-
-    auto conn_param = bt_le_conn_param
-        { .interval_min = 24
-        , .interval_max = 24
-        , .latency = 0
-        , .timeout = 600
-    };
-
-    if (auto err = bt_conn_le_param_update(ble_bl_conn, &conn_param)) {
-        printf("Failed to update connection parameters (error %d)\r\n", err);
-        return;
-    }
-
-    aos_post_event(EV_BLE_TEST, BLE_DEV_CONN, 0);
-}
-static void disconnected(bt_conn* conn, uint8_t reason)
-{
-    printf("Disconnected (reason 0x%02x)\r\n", reason);
-    aos_post_event(EV_BLE_TEST, BLE_DEV_DISCONN, 0);
-}
-
-static void ccc_configuration_changed(bt_gatt_attr const* attr, u16_t vblfue)
-{
-    if(vblfue == BT_GATT_CCC_NOTIFY) {
-        printf("enable notify.\r\n");
-        notify_flag = true;
-    } else {
-        printf("disable notify.\r\n");
-        notify_flag = false;
-    }
-}
-
-static int data_received(bt_conn *conn,
-    bt_gatt_attr const* attr, void const* buf,
-    uint16_t len, uint16_t offset, uint8_t flags)
-{
-    auto recv_buf = std::unique_ptr<uint8_t, decltype(&vPortFree)>
-        { (uint8_t*)pvPortMalloc(sizeof(uint8_t) * len)
-        , vPortFree
-    };
-
-    memcpy(recv_buf.get(), buf, len);
-
-    for (size_t i = 0; i < len; i++) {
-         printf("%02x", recv_buf.get()[i]);
-    }
-    printf("\r\n");
-    return 0;
-}
-
-} // namespace bt_callbacks
-
-// AOS callbacks
-
-namespace aos_callbacks {
-
-static void event_received(input_event_t* event, void* private_data)
-{
-    switch (event->code) {
-        case BLE_ADV_START: {
-            printf("ble adv start \r\n");
-            bl_gpio_output_set(LED_BLUE_PIN, 0);
-            break;
-        }
-
-        case BLE_ADV_STOP: {
-            printf("ble adv stop \r\n");
-            bl_gpio_output_set(LED_BLUE_PIN, 1);
-            break;
-        }
-
-        default: {
-            printf("%s: 0x%02x\r\n", __func__, event->code);
-            break;
-        }
-    }
-}
-
-} // namespace aos_callbacks
 
 namespace globals {
 
-// BT connection callback registry
-static auto bt_connection_callbacks = bt_conn_cb
-    { .connected = bt_callbacks::connected
-    , .disconnected = bt_callbacks::disconnected
-    , .le_param_req = nullptr
-    , .le_param_updated = nullptr
-    , .identity_resolved = nullptr
-    , .security_changed = nullptr
-    , ._next = nullptr
-};
-
 // Global heap
 static auto heap_regions = std::array
-    { HeapRegion_t { &_heap_start,  (unsigned int) &_heap_size}
+    { HeapRegion_t { &_heap_start, (unsigned int)&_heap_size}
     , HeapRegion_t { nullptr, 0 }
 };
+
+// RTOS Tasks
+static auto ble_handler_task = RtosTask<1024>{};
 
 } // namespace globals
 
@@ -272,60 +149,58 @@ static auto test_service = bt_gatt_service
 
 } // gatt_services
 
-// Helpers
-
-static auto get_dts_addr(const char *name)
-{
-    auto addr = hal_board_get_factory_addr();
-    auto offset = fdt_subnode_offset((void const*)addr, 0, name);
-
-    if (offset == 0) {
-        printf("FDT offset lookup failed for '%s'.\r\n", name);
-        return std::make_tuple(false, 0UL, 0);
-    }
-
-    return std::make_tuple(true, addr, offset);
-}
-
-static auto proc_hello_stack = std::array<StackType_t, 1024>{};
-static auto proc_hello_task = StaticTask_t{};
-static void proc_hello_entry(void *pvParameters)
+static void ble_handler_entry(void *pvParameters)
 {
     // Initialize VFS
     vfs_init();
     vfs_device_init();
-    { auto [success, fdt, offset] = get_dts_addr("uart");
-        if (success) {
-            vfs_uart_init(fdt, offset);
-        }
-    }
 
     // Initialize AOS and register event callback
     aos_loop_init();
-    aos_register_event_filter(EV_BLE_TEST, aos_callbacks::event_received, 0);
+    aos_register_event_filter(aos::bt_tag, aos::bt_event_received, 0);
 
     // Initialize UART
+    { auto [success, fdt, offset] = get_dts_addr("uart");
+        if (success) {
+            vfs_uart_init(fdt, offset);
+        } else {
+            printf("Failed to get DTS address for UART\r\n");
+            goto cleanup_ble_handler_entry;
+        }
+    }
     uart_init(1);
 
     // Initialize BLE
     ble_controller_init(configMAX_PRIORITIES - 1);
     hci_driver_init();
 
-    // Register initialization and connection callbacks
-    bt_enable(bt_callbacks::initialized);
-    bt_conn_cb_register(&globals::bt_connection_callbacks);
+    // BT connection callbacks
+    { auto bt_connection_callbacks = bt_conn_cb
+            { .connected = bt_callbacks::connected
+            , .disconnected = bt_callbacks::disconnected
+            , .le_param_req = nullptr
+            , .le_param_updated = nullptr
+            , .identity_resolved = nullptr
+            , .security_changed = nullptr
+            , ._next = nullptr
+        };
+
+        // Register initialization and connection callbacks
+        bt_enable(bt_callbacks::initialized);
+        bt_conn_cb_register(&bt_connection_callbacks);
+    }
 
     // Register test service
     if (auto err = bt_gatt_service_register(&gatt_services::test_service)) {
         printf("Registering services failed with code %d\r\n", err);
-        goto cleanup_proc_hello_entry;
+        goto cleanup_ble_handler_entry;
     }
 
     // Run AOS task loop
     printf("Registering services succeeded, running task loop\r\n");
     aos_loop_run();
 
-cleanup_proc_hello_entry:
+cleanup_ble_handler_entry:
     vTaskDelete(nullptr);
 }
 
@@ -348,11 +223,10 @@ void bfl_main(void)
     // Board config is set after system is initialized
     hal_board_cfg(0);
 
-    bl_gpio_enable_output(LED_BLUE_PIN,1,0);
-    bl_gpio_output_set(LED_BLUE_PIN,1);
+    led::init();
 
-    printf("[OS] Starting proc_hello_entry task...\r\n");
-    xTaskCreateStatic(proc_hello_entry, (char*)"event_loop", proc_hello_stack.size(), nullptr, 15, proc_hello_stack.begin(), &proc_hello_task);
+    printf("[OS] Starting ble_handler_task task...\r\n");
+    globals::ble_handler_task.create_static("ble_handler_task", ble_handler_entry);
 
     printf("[OS] Starting OS Scheduler...\r\n");
     vTaskStartScheduler();
