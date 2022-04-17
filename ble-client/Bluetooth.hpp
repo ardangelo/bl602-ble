@@ -14,7 +14,11 @@ void disconnected(bt_conn* conn, uint8_t reason);
 
 void ccc_configuration_changed(bt_gatt_attr const* attr, u16_t vblfue);
 
-int data_received(bt_conn *conn,
+ssize_t data_requested(bt_conn* conn,
+    bt_gatt_attr const* attr, void* buf,
+    uint16_t len, uint16_t offset);
+
+ssize_t data_received(bt_conn* conn,
     bt_gatt_attr const* attr, void const* buf,
     uint16_t len, uint16_t offset, uint8_t flags);
 

@@ -68,7 +68,7 @@ void bt_callbacks::connected(bt_conn* conn, uint8_t err)
 void bt_callbacks::disconnected(bt_conn* conn, uint8_t reason)
 {
     printf("[BT] Disconnected (reason 0x%02x)\r\n", reason);
-    aos_post_event(aos::bt_tag, (int)aos::BtEvent::Connect, 0);
+    aos_post_event(aos::bt_tag, (int)aos::BtEvent::Disconnect, 0);
 }
 
 void bt_callbacks::ccc_configuration_changed(bt_gatt_attr const* attr, u16_t vblfue)
@@ -82,7 +82,36 @@ void bt_callbacks::ccc_configuration_changed(bt_gatt_attr const* attr, u16_t vbl
     }
 }
 
-int bt_callbacks::data_received(bt_conn *conn,
+ssize_t bt_callbacks::data_requested(bt_conn* conn,
+    bt_gatt_attr const* attr, void* raw_buf,
+    uint16_t len, uint16_t offset)
+{
+    auto buf = (unsigned char*)raw_buf;
+
+    static auto send_buf = []() {
+        auto result = std::array<unsigned char, 128>{};
+        for (int i = 0; i < result.size(); i++) {
+            result[i] = (uint8_t)i;
+        }
+        return result;
+    }();
+
+    printf("[BT] Send: ");
+    auto sent = ssize_t{0};
+    for (size_t i = 0; i < len; i++) {
+        if (offset + i >= send_buf.size()) {
+            break;
+        }
+        buf[i] = send_buf[offset + i];
+        printf("%02x", send_buf[offset + i]);
+        sent++;
+    }
+    printf("\r\n");
+
+    return sent;
+}
+
+ssize_t bt_callbacks::data_received(bt_conn *conn,
     bt_gatt_attr const* attr, void const* buf,
     uint16_t len, uint16_t offset, uint8_t flags)
 {
@@ -93,12 +122,12 @@ int bt_callbacks::data_received(bt_conn *conn,
 
     memcpy(recv_buf.get(), buf, len);
 
-    printf("[BT] ");
+    printf("[BT] Receive: ");
     for (size_t i = 0; i < len; i++) {
          printf("%02x", recv_buf.get()[i]);
     }
     printf("\r\n");
-    return 0;
+    return len;
 }
 
 // BT commands

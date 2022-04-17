@@ -122,6 +122,8 @@ static auto test_rx_char = gatt::make_characteristic(test_rx_uuid,
     0x0, gatt::char_prop::notify);
 static auto test_rx_char_attr = gatt::make_characteristic_attribute(nullptr, nullptr,
     test_rx_char, gatt::perm::read);
+static auto test_rx_attr = gatt::make_attribute(test_rx_uuid,
+    bt_callbacks::data_requested, nullptr, nullptr, 0x0, gatt::perm::read);
 
 // CCC characteristic attribute
 static auto ccc = gatt::make_ccc(bt_callbacks::ccc_configuration_changed, nullptr, nullptr);
@@ -129,17 +131,21 @@ static auto ccc_attr = gatt::make_ccc_attribute(ccc, gatt::perm::read | gatt::pe
 
 // Test TX characteristic attribute
 static auto test_tx_uuid = uuid::make_16(0xfff2);
-static auto test_tx_char = gatt::make_characteristic(test_rx_uuid,
+static auto test_tx_char = gatt::make_characteristic(test_tx_uuid,
     0x0, gatt::char_prop::write_without_resp);
 static auto test_tx_char_attr = gatt::make_characteristic_attribute(nullptr, bt_callbacks::data_received,
     test_tx_char, gatt::perm::read | gatt::perm::write);
+static auto test_tx_attr = gatt::make_attribute(test_tx_uuid,
+    nullptr, bt_callbacks::data_received, nullptr, 0x0, gatt::perm::read | gatt::perm::write);
 
 // Test service
 static auto test_service_attributes = std::array
     { test_service_attr
     , test_rx_char_attr
+    , test_rx_attr
     , ccc_attr
     , test_tx_char_attr
+    , test_tx_attr
 };
 static auto test_service = bt_gatt_service
     { .attrs = test_service_attributes.begin()

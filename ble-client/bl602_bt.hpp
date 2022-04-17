@@ -56,20 +56,29 @@ namespace char_prop {
     static constexpr auto ext_prop = 0x80;
 } // namespace char_prop
 
+template <typename Uuid>
+static constexpr auto make_attribute(Uuid& uuid,
+    decltype(bt_gatt_attr::read) read_callback,
+    decltype(bt_gatt_attr::write) write_callback,
+    void* user_data, uint16_t handle, uint8_t perm)
+{
+    return bt_gatt_attr
+        { .uuid = (bt_uuid const*)&uuid
+        , .read = read_callback
+        , .write = write_callback
+        , .user_data = user_data
+        , .handle = handle
+        , .perm = perm
+    };
+}
+
 template <typename Uuid, typename UserData>
 static constexpr auto make_attribute(Uuid& uuid,
     decltype(bt_gatt_attr::read) read_callback,
     decltype(bt_gatt_attr::write) write_callback,
     UserData &user_data, uint16_t handle, uint8_t perm)
 {
-    return bt_gatt_attr
-        { .uuid = (bt_uuid const*)&uuid
-        , .read = read_callback
-        , .write = write_callback
-        , .user_data = (void*)&user_data
-        , .handle = handle
-        , .perm = perm
-    };
+    return make_attribute(uuid, read_callback, write_callback, (void*)&user_data, handle, perm);
 }
 
 template <typename Uuid>

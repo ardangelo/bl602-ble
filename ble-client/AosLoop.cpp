@@ -29,8 +29,6 @@ void aos::bt_event_received(input_event_t* event, void* private_data)
             printf("[AOS] BLE Connected\r\n");
             led::off();
             led::green_on();
-
-            bt_commands::stop_advertising();
             break;
         }
 
