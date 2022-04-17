@@ -1,0 +1,26 @@
+diff --git a/components/hal_drv/platform_hal/platform_hal_device.cpp b/components/hal_drv/platform_hal/platform_hal_device.cpp
+index 1a6578b6..040a1a76 100644
+--- a/components/hal_drv/platform_hal/platform_hal_device.cpp
++++ b/components/hal_drv/platform_hal/platform_hal_device.cpp
+@@ -47,11 +47,21 @@ extern "C" void operator delete(void* ptr) {
+     vPortFree(ptr);
+ }
+ 
++extern "C" void operator delete(void* ptr, unsigned int) {
++    /* printf("[C++] delete %p\r\n", ptr); */
++    vPortFree(ptr);
++}
++
+ extern "C" void operator delete[](void* ptr) {
+     /* printf("[C++] delete[] %p\r\n", ptr); */
+     vPortFree(ptr);
+ }
+ 
++extern "C" void operator delete[](void* ptr, unsigned int) {
++    /* printf("[C++] delete[] %p\r\n", ptr); */
++    vPortFree(ptr);
++}
++
+ BLLinkedItem::BLLinkedItem() 
+ {
+     this->next = NULL;

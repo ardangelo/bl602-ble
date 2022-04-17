@@ -1,0 +1,22 @@
+diff --git a/make_scripts_riscv/project.mk b/make_scripts_riscv/project.mk
+index 8a8d6e58..eac722e3 100644
+--- a/make_scripts_riscv/project.mk
++++ b/make_scripts_riscv/project.mk
+@@ -187,7 +187,7 @@ include $(BL60X_SDK_PATH)/make_scripts_riscv/toolchain.mk
+ # doesn't use the cross-compilation environment. The specific list of variables
+ # unset is taken from the intersection of what we export and what Python's
+ # distutils uses (see CPython's Lib/distutils/sysconfig.py).
+-all:
++flash:
+ ifeq ("$(OS)","Windows_NT")
+ else
+ ifeq ("$(CONFIG_CHIP_NAME)", "BL602")
+@@ -346,7 +346,7 @@ CFLAGS := $(strip \
+ 	-Werror -Wall
+ 
+ CXXFLAGS := $(strip \
+-	-std=c++11 \
++	-std=c++17 \
+ 	$(OPTIMIZATION_FLAGS) $(DEBUG_FLAGS) \
+ 	$(COMMON_FLAGS) \
+ 	$(COMMON_WARNING_FLAGS) \

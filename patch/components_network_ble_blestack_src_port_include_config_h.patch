@@ -1,0 +1,16 @@
+diff --git a/components/network/ble/blestack/src/port/include/config.h b/components/network/ble/blestack/src/port/include/config.h
+index 5c142b02..af0f8f70 100644
+--- a/components/network/ble/blestack/src/port/include/config.h
++++ b/components/network/ble/blestack/src/port/include/config.h
+@@ -3,6 +3,11 @@
+ 
+ #include "FreeRTOSConfig.h"
+ 
++#if defined(__cplusplus)
++extern "C"
++{
++#endif
++
+ /**
+  * CONFIG_BLUETOOTH: Enable the bluetooh stack
+  */
