@@ -82,18 +82,6 @@ static constexpr auto make_attribute(Uuid& uuid,
 }
 
 template <typename Uuid>
-static constexpr auto make_primary_service_attribute(Uuid& uuid)
-{
-    return make_attribute(
-        uuid::gatt_primary, // uuid
-        bt_gatt_attr_read_service, // read callback
-        nullptr, // write callback
-        uuid, // user data
-        0x0, // handle
-        gatt::perm::read); // permissions
-}
-
-template <typename Uuid>
 static constexpr auto make_characteristic(Uuid& uuid, uint16_t value_handle,
     uint8_t properties)
 {
@@ -102,21 +90,6 @@ static constexpr auto make_characteristic(Uuid& uuid, uint16_t value_handle,
         , .value_handle = value_handle
         , .properties = properties
     };
-}
-
-static constexpr auto make_characteristic_attribute(
-    decltype(bt_gatt_attr::read) read_callback,
-    decltype(bt_gatt_attr::write) write_callback,
-    bt_gatt_chrc& characteristic_attribute,
-    uint8_t perm)
-{
-    return make_attribute(
-        uuid::gatt_characteristic, // uuid
-        bt_gatt_attr_read_chrc, // read callback
-        nullptr, // write callback
-        characteristic_attribute, // user data
-        0x0, // handle
-        gatt::perm::read); // permissions
 }
 
 static constexpr auto make_ccc(
@@ -133,16 +106,114 @@ static constexpr auto make_ccc(
     };
 }
 
-static constexpr auto make_ccc_attribute(_bt_gatt_ccc& ccc, uint8_t perm)
+// Primary Service helper class
+class PrimaryService
 {
-    return make_attribute(
-        uuid::gatt_ccc, // uuid
-        bt_gatt_attr_read_ccc, // read callback
-        bt_gatt_attr_write_ccc, // write callback
-        ccc, // user data
-        0x0, // handle
-        perm); // permissions
-}
+private: // members
+    bt_uuid_16 uuid;
+
+public: // interface
+    PrimaryService(bt_uuid_16 uuid_)
+        : uuid{uuid_}
+    {}
+
+    auto make_attr() {
+        return make_attribute(
+            uuid::gatt_primary, // uuid
+            bt_gatt_attr_read_service, // read callback
+            nullptr, // write callback
+            uuid, // user data
+            0x0, // handle
+            gatt::perm::read); // permissions
+    }
+};
+
+// Characteristic helper class
+class Characteristic
+{
+public: // types
+    using ReadCallback = decltype(bt_gatt_attr::read);
+    using WriteCallback = decltype(bt_gatt_attr::write);
+
+private: // members
+    bt_uuid_16 uuid;
+    ReadCallback read_callback;
+    WriteCallback write_callback;
+    void* user_data;
+    uint8_t permissions;
+    bt_gatt_chrc characteristic;
+
+public: // interface
+
+    Characteristic(bt_uuid_16 uuid_,
+        ReadCallback read_callback_,
+        WriteCallback write_callback_,
+        void* user_data_, uint16_t value_handle, uint8_t properties, uint8_t permissions_)
+        : uuid{uuid_}
+        , read_callback{read_callback_}
+        , write_callback{write_callback_}
+        , user_data{user_data_}
+        , permissions{permissions_}
+        , characteristic{make_characteristic(
+            uuid, value_handle, properties)}
+    {}
+
+    auto make_char_attr() {
+        return make_attribute(
+            uuid::gatt_characteristic, // uuid
+            bt_gatt_attr_read_chrc, // read callback
+            nullptr, // write callback
+            characteristic, // user data
+            0x0, // handle
+            gatt::perm::read); // permissions
+    }
+
+    auto make_attr() {
+        return make_attribute(
+            uuid, // uuid
+            read_callback, // read callback
+            write_callback, // write callback
+            user_data, // user data
+            characteristic.value_handle, // handle
+            permissions); // permissions
+    }
+};
+
+// CCC helper class
+class CCC
+{
+public: // types
+    using ChangedCallback = decltype(_bt_gatt_ccc::cfg_changed);
+    using WriteCallback = decltype(_bt_gatt_ccc::cfg_write);
+    using MatchCallback = decltype(_bt_gatt_ccc::cfg_match);
+
+private: // members
+    uint8_t permissions;
+    _bt_gatt_ccc ccc;
+
+public: // interface
+
+    CCC(ChangedCallback changed_callback,
+        WriteCallback write_callback,
+        MatchCallback match_callback,
+        uint8_t permissions_)
+        : permissions{permissions_}
+        , ccc{make_ccc(
+            changed_callback, write_callback, match_callback)}
+    {}
+
+    auto make_attr() {
+        return make_attribute(
+            uuid::gatt_ccc, // uuid
+            bt_gatt_attr_read_ccc, // read callback
+            bt_gatt_attr_write_ccc, // write callback
+            ccc, // user data
+            0x0, // handle
+            permissions); // permissions
+    }
+};
+
+// Service helper class
 
 } // namespace gatt
 

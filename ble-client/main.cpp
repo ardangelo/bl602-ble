@@ -112,48 +112,56 @@ static auto ble_handler_task = RtosTask<1024>{};
 // BLE GATT services
 namespace gatt_services {
 
-// Test service attribute
-static auto test_service_uuid = uuid::make_16(0xfff0);
-static auto test_service_attr = gatt::make_primary_service_attribute(test_service_uuid);
-
-// Test RX characteristic attribute
-static auto test_rx_uuid = uuid::make_16(0xfff1);
-static auto test_rx_char = gatt::make_characteristic(test_rx_uuid,
-    0x0, gatt::char_prop::notify);
-static auto test_rx_char_attr = gatt::make_characteristic_attribute(nullptr, nullptr,
-    test_rx_char, gatt::perm::read);
-static auto test_rx_attr = gatt::make_attribute(test_rx_uuid,
-    bt_callbacks::data_requested, nullptr, nullptr, 0x0, gatt::perm::read);
-
-// CCC characteristic attribute
-static auto ccc = gatt::make_ccc(bt_callbacks::ccc_configuration_changed, nullptr, nullptr);
-static auto ccc_attr = gatt::make_ccc_attribute(ccc, gatt::perm::read | gatt::perm::write);
-
-// Test TX characteristic attribute
-static auto test_tx_uuid = uuid::make_16(0xfff2);
-static auto test_tx_char = gatt::make_characteristic(test_tx_uuid,
-    0x0, gatt::char_prop::write_without_resp);
-static auto test_tx_char_attr = gatt::make_characteristic_attribute(nullptr, bt_callbacks::data_received,
-    test_tx_char, gatt::perm::read | gatt::perm::write);
-static auto test_tx_attr = gatt::make_attribute(test_tx_uuid,
-    nullptr, bt_callbacks::data_received, nullptr, 0x0, gatt::perm::read | gatt::perm::write);
-
 // Test service
-static auto test_service_attributes = std::array
-    { test_service_attr
-    , test_rx_char_attr
-    , test_rx_attr
-    , ccc_attr
-    , test_tx_char_attr
-    , test_tx_attr
+auto testService = gatt::PrimaryService
+    { uuid::make_16(0xfff0) // uuid
+};
+
+// Test RX characteristic
+static auto testRx = gatt::Characteristic
+    { uuid::make_16(0xfff1) // uuid
+    , bt_callbacks::data_requested // read callback
+    , nullptr // write callback
+    , nullptr // user data
+    , 0x0 // value handle
+    , gatt::char_prop::notify // properties
+    , gatt::perm::read // permissions
+};
+
+static auto ccc = gatt::CCC
+    { bt_callbacks::ccc_configuration_changed // changed callback
+    , nullptr // write callback
+    , nullptr // match callback
+    , gatt::perm::read | gatt::perm::write // permissions
+};
+
+// Test TX characteristic
+static auto testTx = gatt::Characteristic
+    { uuid::make_16(0xfff2) // uuid
+    , nullptr // read callback
+    , bt_callbacks::data_received // write callback
+    , nullptr // user data
+    , 0x0 // value handle
+    , gatt::char_prop::write_without_resp // properties
+    , gatt::perm::read | gatt::perm::write // permissions
+};
+
+// Attribute registry (must be stored for BLE runtime)
+static auto attributes = std::array
+    { gatt_services::testService.make_attr()
+    , gatt_services::testRx.make_char_attr()
+    , gatt_services::testRx.make_attr()
+    , gatt_services::ccc.make_attr()
+    , gatt_services::testTx.make_char_attr()
+    , gatt_services::testTx.make_attr()
 };
 static auto test_service = bt_gatt_service
-    { .attrs = test_service_attributes.begin()
-    , .attr_count = test_service_attributes.size()
+    { .attrs = attributes.begin()
+    , .attr_count = attributes.size()
     , .node = {}
 };
 
-} // gatt_services
+} // namespace gatt_services
 
 static void ble_handler_entry(void *pvParameters)
 {
